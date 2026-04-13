@@ -1,6 +1,6 @@
 # Báo Cáo Cá Nhân — Lab Day 08: RAG Pipeline
 
-**Họ và tên:** Documentation Owner  
+**Họ và tên:** Ngô Quang Tăng 
 **Vai trò trong nhóm:** Documentation Owner  
 **Ngày nộp:** 13/04/2026  
 **Độ dài:** 720 từ
@@ -49,22 +49,25 @@ Ban đầu tôi chọn "chủ yếu Tiếng Việt" vì đây là hệ thống n
 
 ---
 
-## 4. Phân tích một câu hỏi trong scorecard (195 từ)
+## 4. Phân tích một câu hỏi trong scorecard (190 từ)
 
-**Câu hỏi:** "Khách hàng có thể yêu cầu hoàn tiền trong bao lâu?"
+**Câu hỏi (q02):** "Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày?"
 
-**Phân tích:**
+**Actual Scores từ Evaluation:**
 
-| Metric | Baseline (Dense) | Variant (Hybrid+Rerank) | Ghi chú |
-|--------|------------------|------------------------|--------|
-| **Faithfulness** | 4/5 | 5/5 | Baseline retrieve đúng chunk refund_policy, nhưng rank thứ 5 (score 0.72). LLM chỉ lấy top-3 → miss. Variant: Hybrid + BM25 catch keyword "hoàn tiền" ở top-10, rerank đưa lên #2 → full context |
-| **Context Recall** | 3/5 | 5/5 | Baseline only retrieve "Time Limit: 30 days". Variant also get "Proof of Payment", "Refund Process" → complete picture |
-| **Answer Relevance** | 4/5 | 5/5 | Cả 2 trả lời đúng "30 ngày", nhưng baseline thiếu context "Từ ngày mua" → ambiguous. Variant rõ ràng "From purchase date" |
-| **Completeness** | 3/5 | 5/5 | Baseline = fact only. Variant = fact + business logic (why 30 days, exceptions) |
+| Metric | Baseline | Variant | Expected | Result |
+|--------|----------|---------|----------|--------|
+| **Faithfulness** | 4/5 | 5/5 | 4/5 ✓ | Baseline: "7 ngày làm việc" ✓ (correct). Variant: same, cũng 5/5 |
+| **Relevance** | 5/5 | 5/5 | 5/5 ✓ | Cả 2 trả lời trực tiếp câu hỏi ✓ |
+| **Context Recall** | 5/5 | 5/5 | 5/5 ✓ | Cả 2 retrieve đủ context ✓ |
+| **Completeness** | 5/5 | 5/5 | 5/5 ✓ | Cả 2 cover full scope (time frame từ confirmation date) ✓ |
 
-**Root cause:** Câu hỏi này mix **exact keyword ("hoàn tiền")** + **semantic understanding ("refund timeframe")**. Dense-only embedding struggle với keyword pure. Hybrid + BM25 = solution.
+**Đánh giá:** Đây là câu hỏi **"easy" — cả Baseline lẫn Variant đều perfect 4.75/5**. Lý do:
+- Query "hoàn tiền" là **exact keyword** trong policy
+- Dense embedding catch tốt vì keyword rõ ràng
+- Hybrid không bring value vì Dense đã rank chính xác (#1)
 
-**Impact:** Nếu company policy có nhiều câu hỏi keyword-heavy (tên chuyên ngành, mã lỗi, thủ ngữ nội bộ), Hybrid MUST > Dense only. Variant selection justified.
+**Key insight:** Hybrid+Rerank chỉ giúp khi Dense rank **sai** (recall thứ 5-10). Câu q02 là counterexample. Những câu fail (q04, q07, q09, q10) không retrieve do **out-of-context**, không phải ranking problem.
 
 ---
 
@@ -76,4 +79,25 @@ Ban đầu tôi chọn "chủ yếu Tiếng Việt" vì đây là hệ thống n
 
 ---
 
-*File này lưu tại: `reports/individual/DocumentationOwner.md`*
+## 6. Tóm tắt Eval Results — So sánh Baseline vs Variant (100 từ)
+
+**Overall Performance:**
+- **Baseline (Dense):** 3.73/5 average
+  - Faithfulness: 3.30, Relevance: 3.80, Context Recall: 5.00, Completeness: 2.80
+- **Variant (Hybrid+Rerank):** 3.68/5 average
+  - Faithful: 3.40, Relevance: 3.80, Context Recall: 5.00, Completeness: 2.50
+- **Result:** Variant **KHÔNG cải thiện** (-1.3%) do corpus quá nhỏ
+
+**Pass/Fail Breakdown:**
+- ✅ **6/10 pass:** q01, q02, q03, q05, q06, q08 (well-covered policy questions)
+- ❌ **4/10 fail:** q04, q07, q09, q10 (out-of-context — không có matching policy)
+
+**Lesson Learned:** Hybrid+Rerank không phải silver bullet. Chỉ hiệu quả khi:
+- Corpus > 1000 chunks
+- Có ranking errors (relevant doc rank thứ 5+ thay vì #1)
+- Hiện tại: corpus đủ nhỏ, dense đã đủ tốt
+
+---
+
+*File báo cáo cá nhân: `reports/individual/NgoQuangTang.md`*
+*Corresponding architecture doc: `docs/architecture.md`*
