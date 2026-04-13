@@ -91,8 +91,12 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
                 # Gặp section heading đầu tiên → kết thúc header
                 header_done = True
                 content_lines.append(line)
-            elif line.strip() == "" or line.isupper():
-                # Dòng tên tài liệu (toàn chữ hoa) hoặc dòng trống
+            elif line.strip() == "":
+                # Dòng trống trong header → bỏ qua
+                continue
+            elif not any(line.startswith(k) for k in ("Source:", "Department:", "Effective Date:", "Access:")):
+                # [TL] Fix: line.isupper() fails for Vietnamese diacritics ("CHÍNH SÁCH..." → False)
+                # Bất kỳ dòng nào trong header mà không phải Key: Value → là tiêu đề tài liệu, bỏ qua
                 continue
         else:
             content_lines.append(line)
