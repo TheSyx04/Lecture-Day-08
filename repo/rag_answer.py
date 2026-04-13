@@ -76,10 +76,39 @@ def retrieve_dense(query: str, top_k: int = TOP_K_SEARCH) -> List[Dict[str, Any]
         # Lưu ý: distances trong ChromaDB cosine = 1 - similarity
         # Score = 1 - distance
     """
-    raise NotImplementedError(
-        "TODO Sprint 2: Implement retrieve_dense().\n"
-        "Tham khảo comment trong hàm để biết cách query ChromaDB."
+    # [TL] Sprint 2: Dense retrieval — embed query → query ChromaDB → return ranked chunks
+    import chromadb
+    from index import get_embedding, CHROMA_DB_DIR
+
+    # Connect to the persistent ChromaDB built in Sprint 1
+    client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
+    collection = client.get_collection("rag_lab")
+
+    # Embed the query using the SAME model used during indexing (text-embedding-3-small)
+    # Using a different model here would produce incompatible vectors → wrong results
+    query_embedding = get_embedding(query)
+
+    # Query ChromaDB — returns distances (cosine distance = 1 - similarity)
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=min(top_k, collection.count()),  # guard: don't request more than available
+        include=["documents", "metadatas", "distances"],
     )
+
+    # Convert to a flat list of chunk dicts with similarity scores
+    chunks = []
+    for doc, meta, dist in zip(
+        results["documents"][0],
+        results["metadatas"][0],
+        results["distances"][0],
+    ):
+        chunks.append({
+            "text": doc,
+            "metadata": meta,
+            "score": 1.0 - dist,  # cosine distance → similarity (higher = more relevant)
+        })
+
+    return chunks
 
 
 # =============================================================================
@@ -316,10 +345,16 @@ def call_llm(prompt: str) -> str:
 
     Lưu ý: Dùng temperature=0 hoặc thấp để output ổn định cho evaluation.
     """
-    raise NotImplementedError(
-        "TODO Sprint 2: Implement call_llm().\n"
-        "Chọn Option A (OpenAI) hoặc Option B (Gemini) trong TODO comment."
+    # [TL] Sprint 2: Dùng OpenAI — khớp với LLM_PROVIDER=openai trong .env
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = client.chat.completions.create(
+        model=LLM_MODEL,                          # gpt-4o-mini từ .env
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,     # [TL] temperature=0: output ổn định, tái hiện được → dễ A/B eval
+        max_tokens=512,    # đủ cho câu trả lời ngắn gọn, grounded
     )
+    return response.choices[0].message.content
 
 
 def rag_answer(
@@ -485,14 +520,19 @@ if __name__ == "__main__":
     # compare_retrieval_strategies("Approval Matrix để cấp quyền là tài liệu nào?")
     # compare_retrieval_strategies("ERR-403-AUTH")
 
-    print("\n\nViệc cần làm Sprint 2:")
-    print("  1. Implement retrieve_dense() — query ChromaDB")
-    print("  2. Implement call_llm() — gọi OpenAI hoặc Gemini")
-    print("  3. Chạy rag_answer() với 3+ test queries")
-    print("  4. Verify: output có citation không? Câu không có docs → abstain không?")
 
-    print("\nViệc cần làm Sprint 3:")
-    print("  1. Chọn 1 trong 3 variants: hybrid, rerank, hoặc query transformation")
-    print("  2. Implement variant đó")
-    print("  3. Chạy compare_retrieval_strategies() để thấy sự khác biệt")
-    print("  4. Ghi lý do chọn biến đó vào docs/tuning-log.md")
+    # [TL] Sprint 2: Definition of Done verification summary
+    print("\n" + "=" * 60)
+    print("Sprint 2 — Definition of Done Check")
+    print("=" * 60)
+    print("✓ retrieve_dense() implemented  — queries ChromaDB with embedding")
+    print("✓ call_llm() implemented         — OpenAI gpt-4o-mini, temperature=0")
+    print("✓ rag_answer() end-to-end wired  — retrieve → rerank → generate")
+    print()
+    print("Kiểm tra kết quả bên trên:")
+    print("  [DoD 1] Query SLA P1     → answer phải có [1] citation")
+    print("  [DoD 2] Query ERR-403    → answer phải abstain (không bịa)")
+    print("  [DoD 3] sources field    → không được rỗng với câu có trong docs")
+    print()
+    print("Bước tiếp theo: Sprint 3 — Retrieval Owner implement hybrid/rerank/transform")
+
